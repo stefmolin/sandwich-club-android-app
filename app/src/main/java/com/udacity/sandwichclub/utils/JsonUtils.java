@@ -4,6 +4,10 @@ import android.util.Log;
 
 import com.udacity.sandwichclub.model.Sandwich;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -33,103 +37,53 @@ public class JsonUtils {
          Sandwich(String mainName, List<String> alsoKnownAs, String placeOfOrigin,
                   String description, String image, List<String> ingredients)
          */
-        json = json.replace("\"", "").replace("\\", "");
 
-        /* This now looks like (spacing is for ease of understanding only)
-        {
-           name:{
-                 mainName:Medianoche,
-                 alsoKnownAs:[Cuban Sandwich]
-                 },
-           placeOfOrigin:Cuba,
-           description:Medianoche (midnight in Spanish) is a type of sandwich which originated in Cuba.
-                       It is served in many Cuban communities in the United States.
-                       It is so named because of the sandwich's popularity as a staple served in Havana's
-                       night clubs right around or after midnight.,
-           image:https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Sandwich_de_Medianoche.jpg/800px-Sandwich_de_Medianoche.jpg,
-           ingredients:[Egg bread,Roast pork,Ham,Mustard,Swiss cheese,Dill pickles]
-         }
-        */
+        try {
+            JSONObject root = new JSONObject(json);
+            JSONObject name = root.getJSONObject("name");
+            String sandwichName = name.getString("mainName");
+            JSONArray akas = name.getJSONArray("alsoKnownAs");
+            String origin = root.getString("placeOfOrigin");
+            String description = root.getString("description");
+            String image = root.getString("image");
+            JSONArray ingredients = root.getJSONArray("ingredients");
 
-        String jsonArray[] = json.split("\\{");
+            return new Sandwich(handleMissingInfo(sandwichName, "Missing sandwich name!"),
+                                JsonUtils.jsonArrayToArrayList(akas, "N/A"),
+                                handleMissingInfo(origin, "Unknown"),
+                                handleMissingInfo(description, "No description found."),
+                                image,
+                                JsonUtils.jsonArrayToArrayList(ingredients, "Missing ingredients!"));
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return null;
+        }
 
-        // Parse sandwich name
-        Pattern namePattern = Pattern.compile("(?:(mainName:))(\\w*)");
-        Matcher nameMatcher = namePattern.matcher(jsonArray[2]);
-        String sandwichName;
-        if (nameMatcher.find()) {
-            sandwichName = nameMatcher.group(2);
+    }
+
+    private static String handleMissingInfo(String data, String fallbackValue) {
+        if (data == null || data.equals("")) {
+            return fallbackValue;
         } else {
-            sandwichName = "";
+            return data;
         }
+    }
 
-        // Parse sandwich AKA's
-        Pattern akaPattern = Pattern.compile("(?:(alsoKnownAs:))(([^\\}])*)");
-        Matcher akaMatcher = akaPattern.matcher(jsonArray[2]);
-        String[] akaNames;
-        if (akaMatcher.find()) {
-            akaNames = akaMatcher.group(2).replaceAll("[\\[\\]]", "").split(",");
-        } else {
-            akaNames = new String[1];
-            akaNames[0] = "N/A";
-        }
-        ArrayList<String> akas = new ArrayList<>();
-        for (String aka : akaNames) {
-            if (aka != null && aka != ""){
-                akas.add(aka);
-            } else {
-                akas.add("N/A");
-            }
-        }
+    private static ArrayList<String> jsonArrayToArrayList(JSONArray array, String emptyValue) {
+        ArrayList<String> result = new ArrayList<>();
 
-        // Parse sandwich origin
-        Pattern originPattern = Pattern.compile("(?:(placeOfOrigin:))(.*)(?=,description)");
-        Matcher originMatcher = originPattern.matcher(jsonArray[2]);
-        String origin;
-        if (originMatcher.find()) {
-            origin = originMatcher.group(2);
-            if (origin == null || origin == "") {
-                origin = "Unknown";
+        if (array.length() != 0) {
+            for (int i = 0; i < array.length(); i++) {
+                try {
+                    result.add(array.getString(i));
+                } catch (JSONException e) {
+                    result.add(emptyValue);
+                }
             }
         } else {
-            origin = "Unknown";
+            result.add(emptyValue);
         }
-
-        // Parse sandwich description
-        Pattern descriptionPattern = Pattern.compile("(?:(description:))(.*)(?=,image)");
-        Matcher descriptionMatcher = descriptionPattern.matcher(jsonArray[2]);
-        String description;
-        if (descriptionMatcher.find()) {
-            description = descriptionMatcher.group(2);
-        } else {
-            description = "Description missing.";
-        }
-
-        // Parse sandwich image
-        Pattern imagePattern = Pattern.compile("(?:(image:))(.*)(?:,)(?=ingredients)");
-        Matcher imageMatcher = imagePattern.matcher(jsonArray[2]);
-        String image;
-        if (imageMatcher.find()) {
-            image = imageMatcher.group(2);
-        } else {
-            image = "";
-        }
-
-        // Parse sandwich ingredients
-        Pattern ingredientsPattern = Pattern.compile("(?:(ingredients:))(([^\\}])*)");
-        Matcher ingredientsMatcher = ingredientsPattern.matcher(jsonArray[2]);
-        String[] ingredients;
-        if (ingredientsMatcher.find()) {
-            ingredients = ingredientsMatcher.group(2).replaceAll("[\\[\\]]", "").split(",");
-        } else {
-            ingredients = new String[1];
-            ingredients[0] = "Ingredients missing!";
-        }
-        ArrayList<String> ingredientsArrayList = new ArrayList<>();
-        for (String ingredient : ingredients) {
-            ingredientsArrayList.add(ingredient);
-        }
-        return new Sandwich(sandwichName, akas, origin, description, image, ingredientsArrayList);
+        return result;
     }
 
     public static String arrayToString(List<String> array){
